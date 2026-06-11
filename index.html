@@ -2215,7 +2215,7 @@ function Header({
       fontSize: 8,
       color: C.textVeryDim
     }
-  }, "BUILD 2026-06-11 18:32 UTC \xB7 r9")), /*#__PURE__*/React.createElement("div", {
+  }, "BUILD 2026-06-11 18:54 UTC \xB7 r11")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       alignItems: 'center',
@@ -2929,19 +2929,9 @@ function LogForm({
   const [activity, setActivity] = useState(makeActivity(entries[yesterdayDate]));
   function makeMorning(ex) {
     ex = ex || {};
+    // Vitals, sleep, and body composition arrive via sync (Garmin / Withings / Omron).
+    // The form carries only what no device can measure.
     return {
-      weight: ex.weight ?? '',
-      restingHR: ex.restingHR ?? '',
-      hrv: ex.hrv ?? '',
-      vo2max: ex.vo2max ?? '',
-      vo2maxBike: ex.vo2maxBike ?? '',
-      bpSys: ex.bpSys ?? '',
-      bpDia: ex.bpDia ?? '',
-      sleepHrs: ex.sleepHrs ?? '',
-      sleepScore: ex.sleepScore ?? '',
-      bodyFat: ex.bodyFat ?? '',
-      muscle: ex.muscle ?? '',
-      vascularAge: ex.vascularAge ?? '',
       soreness: ex.soreness ?? 0,
       fatigue: ex.fatigue ?? 0,
       mood: ex.mood ?? 3,
@@ -2980,7 +2970,7 @@ function LogForm({
 
   // Yesterday's training from session log (read-only context)
   const yesterdaySessions = (sessions || []).filter(s => s.date === yesterdayDate);
-  const tdee = calcTDEE(baseline, morning.weight || baseline.startWeight);
+  const tdee = calcTDEE(baseline, (entries[editDate] || {}).weight || baseline.startWeight);
   const deficit = activity.calories ? tdee - +activity.calories : null;
   const sliderField = (obj, setObj, k, label, extra) => /*#__PURE__*/React.createElement("div", {
     style: {
@@ -3131,181 +3121,32 @@ function LogForm({
       marginTop: 4,
       color: deficit > 1000 ? C.red : deficit > 500 ? C.amber : C.green
     }
-  }, "Yesterday deficit: ", deficit > 0 ? '-' : '+', Math.abs(deficit), " kcal vs TDEE ", tdee, " (excl. training burn)", deficit > 1000 && ' ⚠ Lean mass risk')), /*#__PURE__*/React.createElement(Section, {
-    title: "THIS MORNING \xB7 WEIGHT & VITALS (FASTED)"
-  }, /*#__PURE__*/React.createElement(Row, null, /*#__PURE__*/React.createElement(Field, {
-    label: "Weight (kg)"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    inputMode: "decimal",
-    step: "0.1",
-    value: morning.weight,
-    onChange: e => setMorning({
-      ...morning,
-      weight: e.target.value
-    }),
-    style: inputStyle
-  })), /*#__PURE__*/React.createElement(Field, {
-    label: "Resting HR"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    inputMode: "numeric",
-    value: morning.restingHR,
-    onChange: e => setMorning({
-      ...morning,
-      restingHR: e.target.value
-    }),
-    style: inputStyle
-  })), /*#__PURE__*/React.createElement(Field, {
-    label: "HRV (ms, Garmin overnight)"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    inputMode: "numeric",
-    value: morning.hrv,
-    onChange: e => setMorning({
-      ...morning,
-      hrv: e.target.value
-    }),
-    style: inputStyle,
-    placeholder: "optional"
-  }))), /*#__PURE__*/React.createElement(Row, null, /*#__PURE__*/React.createElement(Field, {
-    label: "VO2max run (Garmin)"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    inputMode: "decimal",
-    step: "0.1",
-    value: morning.vo2max,
-    onChange: e => setMorning({
-      ...morning,
-      vo2max: e.target.value
-    }),
-    style: inputStyle,
-    placeholder: "optional"
-  })), /*#__PURE__*/React.createElement(Field, {
-    label: "VO2max bike (Garmin)"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    inputMode: "decimal",
-    step: "0.1",
-    value: morning.vo2maxBike,
-    onChange: e => setMorning({
-      ...morning,
-      vo2maxBike: e.target.value
-    }),
-    style: inputStyle,
-    placeholder: "optional"
-  }))), /*#__PURE__*/React.createElement(Row, null, /*#__PURE__*/React.createElement(Field, {
-    label: "BP systolic"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    inputMode: "numeric",
-    value: morning.bpSys,
-    onChange: e => setMorning({
-      ...morning,
-      bpSys: e.target.value
-    }),
-    style: inputStyle
-  })), /*#__PURE__*/React.createElement(Field, {
-    label: "BP diastolic"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    inputMode: "numeric",
-    value: morning.bpDia,
-    onChange: e => setMorning({
-      ...morning,
-      bpDia: e.target.value
-    }),
-    style: inputStyle
-  }))), morning.restingHR && /*#__PURE__*/React.createElement("div", {
-    className: "mono",
-    style: {
-      fontSize: 10,
-      marginTop: 4,
-      color: +morning.restingHR > baseline.baselineHR + 20 ? C.red : +morning.restingHR > baseline.baselineHR + 10 ? C.orange : C.green
-    }
-  }, "\u0394 HR: ", (+morning.restingHR - baseline.baselineHR > 0 ? '+' : '') + (+morning.restingHR - baseline.baselineHR), " bpm", +morning.restingHR > baseline.baselineHR + 20 && ' ⚠ STOP SIGNAL')), /*#__PURE__*/React.createElement(Section, {
-    title: "THIS MORNING \xB7 SLEEP (GARMIN, LAST NIGHT)"
-  }, /*#__PURE__*/React.createElement(Row, null, /*#__PURE__*/React.createElement(Field, {
-    label: "Hours"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    inputMode: "decimal",
-    step: "0.1",
-    value: morning.sleepHrs,
-    onChange: e => setMorning({
-      ...morning,
-      sleepHrs: e.target.value
-    }),
-    style: inputStyle
-  })), /*#__PURE__*/React.createElement(Field, {
-    label: "Score (0-100)"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    inputMode: "numeric",
-    min: "0",
-    max: "100",
-    value: morning.sleepScore,
-    onChange: e => setMorning({
-      ...morning,
-      sleepScore: e.target.value
-    }),
-    style: inputStyle,
-    placeholder: "e.g. 67"
-  }))), morning.sleepScore && /*#__PURE__*/React.createElement("div", {
-    className: "mono",
-    style: {
-      fontSize: 10,
-      marginTop: 4,
-      color: +morning.sleepScore >= 80 ? C.green : +morning.sleepScore >= 60 ? C.amber : C.red
-    }
-  }, +morning.sleepScore >= 80 ? 'Excellent' : +morning.sleepScore >= 60 ? 'Fair' : 'Poor', " \xB7 target ", baseline.sleepScoreTarget || 80)), /*#__PURE__*/React.createElement(Section, {
-    title: "THIS MORNING \xB7 BODY COMPOSITION (WITHINGS)"
-  }, /*#__PURE__*/React.createElement(Row, null, /*#__PURE__*/React.createElement(Field, {
-    label: "Body fat %"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    inputMode: "decimal",
-    step: "0.1",
-    value: morning.bodyFat,
-    onChange: e => setMorning({
-      ...morning,
-      bodyFat: e.target.value
-    }),
-    style: inputStyle,
-    placeholder: baseline.bodyFatBaseline ? `baseline ${baseline.bodyFatBaseline}` : ''
-  })), /*#__PURE__*/React.createElement(Field, {
-    label: "Muscle %"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    inputMode: "decimal",
-    step: "0.1",
-    value: morning.muscle,
-    onChange: e => setMorning({
-      ...morning,
-      muscle: e.target.value
-    }),
-    style: inputStyle,
-    placeholder: baseline.muscleBaseline ? `baseline ${baseline.muscleBaseline}` : ''
-  }))), /*#__PURE__*/React.createElement(Field, {
-    label: "Vascular age (Withings)"
-  }, /*#__PURE__*/React.createElement("input", {
-    type: "number",
-    inputMode: "numeric",
-    value: morning.vascularAge,
-    onChange: e => setMorning({
-      ...morning,
-      vascularAge: e.target.value
-    }),
-    style: inputStyle,
-    placeholder: baseline.vascularAgeBaseline ? `baseline ${baseline.vascularAgeBaseline}` : 'optional, weekly'
-  })), morning.vascularAge && baseline.age && /*#__PURE__*/React.createElement("div", {
-    className: "mono",
-    style: {
-      fontSize: 10,
-      marginTop: 4,
-      color: +morning.vascularAge - baseline.age < 0 ? C.green : +morning.vascularAge - baseline.age > 5 ? C.red : C.amber
-    }
-  }, "Vasc age delta: ", (+morning.vascularAge - baseline.age > 0 ? '+' : '') + (+morning.vascularAge - baseline.age), " vs chronological ", baseline.age)), /*#__PURE__*/React.createElement(Section, {
+  }, "Yesterday deficit: ", deficit > 0 ? '-' : '+', Math.abs(deficit), " kcal vs TDEE ", tdee, " (excl. training burn)", deficit > 1000 && ' ⚠ Lean mass risk')), (() => {
+    const ex = entries[editDate] || {};
+    const have = [ex.weight != null && `weight ${ex.weight}kg`, ex.restingHR != null && `RHR ${ex.restingHR}`, ex.hrv != null && `HRV ${ex.hrv}`, ex.sleepScore != null && `sleep ${ex.sleepScore}`, ex.bpSys != null && `BP ${ex.bpSys}/${ex.bpDia}`, ex.bodyFat != null && `fat ${ex.bodyFat}%`, ex.vascularAge != null && `vasc age ${ex.vascularAge}`].filter(Boolean);
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: C.bg,
+        border: `1px solid ${C.border}`,
+        padding: 10,
+        marginBottom: 16
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "mono",
+      style: {
+        fontSize: 9,
+        color: C.textDim,
+        letterSpacing: '0.15em',
+        marginBottom: 4
+      }
+    }, "SYNCED \xB7 THIS DAY"), /*#__PURE__*/React.createElement("div", {
+      className: "mono",
+      style: {
+        fontSize: 10,
+        color: have.length ? C.green : C.textVeryDim
+      }
+    }, have.length ? have.join(' · ') : 'nothing synced yet · arrives via nightly pipeline + SYNC'));
+  })(), /*#__PURE__*/React.createElement(Section, {
     title: "THIS MORNING \xB7 RECOVERY"
   }, sliderField(morning, setMorning, 'soreness', 'Muscle soreness (reflects yesterday)', /*#__PURE__*/React.createElement("div", {
     className: "mono",
