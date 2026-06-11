@@ -1647,12 +1647,115 @@ function App() {
     }
   };
 
-  // Auto-sync on open: runs once per app load, silently, when sync is configured
+  // ---- GitHub cloud save: the private repo is the source of truth ----
+  const [cloudStatus, setCloudStatus] = useState('off'); // off | loading | ok | saving | error
+  const cloudShaRef = useRef(null);
+  const cloudReadyRef = useRef(false);
+  const lastPushedRef = useRef(null);
+  const b64enc = str => btoa(unescape(encodeURIComponent(str)));
+  const b64dec = str => decodeURIComponent(escape(atob(str.replace(/\n/g, ''))));
+  const cloudUrl = () => `https://api.github.com/repos/${syncCfg.repo}/contents/tri-data.json`;
+  const ghHeaders = () => ({
+    Authorization: `Bearer ${syncCfg.token}`,
+    Accept: 'application/vnd.github+json'
+  });
+  const loadCloud = async () => {
+    setCloudStatus('loading');
+    try {
+      const r = await fetch(cloudUrl(), {
+        headers: ghHeaders()
+      });
+      if (r.status === 404) {
+        setCloudStatus('ok');
+        return;
+      } // first run: nothing in cloud yet
+      if (!r.ok) throw new Error(`GitHub ${r.status}`);
+      const j = await r.json();
+      cloudShaRef.current = j.sha;
+      const data = JSON.parse(b64dec(j.content));
+      if (data.baseline) {
+        store.set('baseline', data.baseline);
+        setBaseline(data.baseline);
+      }
+      if (data.entries) {
+        store.set('entries', data.entries);
+        setEntries(data.entries);
+      }
+      if (data.sessions) {
+        store.set('sessions', data.sessions);
+        setSessions(data.sessions);
+      }
+      lastPushedRef.current = JSON.stringify({
+        baseline: data.baseline,
+        entries: data.entries,
+        sessions: data.sessions
+      });
+      setCloudStatus('ok');
+    } catch (e) {
+      console.warn('Cloud load failed:', e.message);
+      setCloudStatus('error');
+    }
+  };
+  const saveCloud = async (payloadStr, retried) => {
+    try {
+      setCloudStatus('saving');
+      const body = {
+        message: `app save ${new Date().toISOString()}`,
+        content: b64enc(payloadStr)
+      };
+      if (cloudShaRef.current) body.sha = cloudShaRef.current;
+      const r = await fetch(cloudUrl(), {
+        method: 'PUT',
+        headers: ghHeaders(),
+        body: JSON.stringify(body)
+      });
+      if ((r.status === 409 || r.status === 422) && !retried) {
+        // SHA stale (another device wrote): refresh SHA, last write wins
+        const g = await fetch(cloudUrl(), {
+          headers: ghHeaders()
+        });
+        if (g.ok) cloudShaRef.current = (await g.json()).sha;
+        return saveCloud(payloadStr, true);
+      }
+      if (!r.ok) throw new Error(`GitHub ${r.status}`);
+      const j = await r.json();
+      cloudShaRef.current = j.content && j.content.sha;
+      lastPushedRef.current = payloadStr;
+      setCloudStatus('ok');
+    } catch (e) {
+      console.warn('Cloud save failed:', e.message);
+      setCloudStatus('error');
+    }
+  };
+
+  // Watch state; debounce-push changes to GitHub once cloud is loaded
+  useEffect(() => {
+    if (!cloudReadyRef.current) return;
+    if (!syncCfg.repo || !syncCfg.token) return;
+    const payload = JSON.stringify({
+      baseline,
+      entries,
+      sessions
+    });
+    if (payload === lastPushedRef.current) return;
+    const t = setTimeout(() => saveCloud(payload), 1500);
+    return () => clearTimeout(t);
+  }, [baseline, entries, sessions]);
+
+  // On open: cloud state first, then Garmin sync on top, then the watcher pushes the merge back up
   const autoSyncedRef = useRef(false);
   useEffect(() => {
     if (autoSyncedRef.current) return;
     autoSyncedRef.current = true;
-    if (syncCfg.repo && syncCfg.token) syncNow(true);
+    (async () => {
+      if (syncCfg.repo && syncCfg.token) {
+        await loadCloud();
+        cloudReadyRef.current = true;
+        syncNow(true);
+      } else {
+        cloudReadyRef.current = true;
+      }
+    })();
   }, []);
   const resetAll = () => {
     if (!confirm('Wipe all data? Cannot be undone. Export a backup first if you want to preserve it.')) return;
@@ -1705,7 +1808,8 @@ function App() {
     lastExport: lastExport,
     onExport: exportData,
     onSync: () => syncNow(false),
-    syncing: syncing
+    syncing: syncing,
+    cloudStatus: cloudStatus
   }), /*#__PURE__*/React.createElement(Nav, {
     view: view,
     setView: setView
@@ -1750,7 +1854,7 @@ function App() {
       color: C.textDim,
       marginBottom: 12
     }
-  }, "// NIGHTLY GARMIN PULL VIA GITHUB ACTION. AUTO-SYNCS ON OPEN + SYNC BUTTON."), /*#__PURE__*/React.createElement(Field, {
+  }, "// CLOUD SAVE: APP DATA LIVES IN THE PRIVATE REPO (tri-data.json), AUTO-LOADED ON OPEN.\\n                // TOKEN NEEDS CONTENTS READ-WRITE. GARMIN DATA MERGES ON TOP NIGHTLY."), /*#__PURE__*/React.createElement(Field, {
     label: "Repo (owner/name)"
   }, /*#__PURE__*/React.createElement("input", {
     value: syncCfg.repo,
@@ -1941,7 +2045,8 @@ function Header({
   lastExport,
   onExport,
   onSync,
-  syncing
+  syncing,
+  cloudStatus
 }) {
   const today = todayISO();
   const days = daysBetween(baseline.startDate, today);
@@ -2026,7 +2131,7 @@ function Header({
       letterSpacing: '0.05em',
       fontWeight: 700
     }
-  }, syncing ? '...' : 'SYNC')), /*#__PURE__*/React.createElement("button", {
+  }, syncing || cloudStatus === 'saving' || cloudStatus === 'loading' ? '...' : cloudStatus === 'error' ? 'SYNC !' : 'SYNC')), /*#__PURE__*/React.createElement("button", {
     onClick: onExport,
     style: {
       background: saveBg + '40',
