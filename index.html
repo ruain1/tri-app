@@ -1594,9 +1594,9 @@ function App() {
   });
   const [lastSync, setLastSync] = useState(store.get('lastSync') || null);
   const [syncing, setSyncing] = useState(false);
-  const syncNow = async () => {
+  const syncNow = async (silent = false) => {
     if (!syncCfg.repo || !syncCfg.token) {
-      alert('Set GitHub repo and token in SETUP first.');
+      if (!silent) alert('Set GitHub repo and token in SETUP first.');
       return;
     }
     setSyncing(true);
@@ -1615,13 +1615,21 @@ function App() {
       const now = todayISO();
       store.set('lastSync', now);
       setLastSync(now);
-      alert(`Synced from GitHub: ${summary}.`);
+      if (!silent) alert(`Synced from GitHub: ${summary}.`);
     } catch (e) {
-      alert('Sync failed: ' + e.message);
+      if (silent) console.warn('Auto-sync on open failed:', e.message);else alert('Sync failed: ' + e.message);
     } finally {
       setSyncing(false);
     }
   };
+
+  // Auto-sync on open: runs once per app load, silently, when sync is configured
+  const autoSyncedRef = useRef(false);
+  useEffect(() => {
+    if (autoSyncedRef.current) return;
+    autoSyncedRef.current = true;
+    if (syncCfg.repo && syncCfg.token) syncNow(true);
+  }, []);
   const resetAll = () => {
     if (!confirm('Wipe all data? Cannot be undone. Export a backup first if you want to preserve it.')) return;
     store.del('baseline');
@@ -1672,7 +1680,7 @@ function App() {
     entries: entries,
     lastExport: lastExport,
     onExport: exportData,
-    onSync: syncNow,
+    onSync: () => syncNow(false),
     syncing: syncing
   }), /*#__PURE__*/React.createElement(Nav, {
     view: view,
@@ -1718,7 +1726,7 @@ function App() {
       color: C.textDim,
       marginBottom: 12
     }
-  }, "// NIGHTLY GARMIN PULL VIA GITHUB ACTION. SYNC BUTTON FETCHES + MERGES."), /*#__PURE__*/React.createElement(Field, {
+  }, "// NIGHTLY GARMIN PULL VIA GITHUB ACTION. AUTO-SYNCS ON OPEN + SYNC BUTTON."), /*#__PURE__*/React.createElement(Field, {
     label: "Repo (owner/name)"
   }, /*#__PURE__*/React.createElement("input", {
     value: syncCfg.repo,
