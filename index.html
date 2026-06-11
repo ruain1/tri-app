@@ -1662,16 +1662,16 @@ function App() {
   const lastPushedRef = useRef(null);
   const b64enc = str => btoa(unescape(encodeURIComponent(str)));
   const b64dec = str => decodeURIComponent(escape(atob(str.replace(/\n/g, ''))));
-  const cloudUrl = () => `https://api.github.com/repos/${syncCfg.repo}/contents/tri-data.json`;
-  const ghHeaders = () => ({
-    Authorization: `Bearer ${syncCfg.token}`,
+  const cloudUrl = (cfg = syncCfg) => `https://api.github.com/repos/${cfg.repo}/contents/tri-data.json`;
+  const ghHeaders = (cfg = syncCfg) => ({
+    Authorization: `Bearer ${cfg.token}`,
     Accept: 'application/vnd.github+json'
   });
-  const loadCloud = async () => {
+  const loadCloud = async (cfg = syncCfg) => {
     setCloudStatus('loading');
     try {
-      const r = await fetch(cloudUrl(), {
-        headers: ghHeaders()
+      const r = await fetch(cloudUrl(cfg), {
+        headers: ghHeaders(cfg)
       });
       if (r.status === 404) {
         setCloudStatus('ok');
@@ -1808,11 +1808,74 @@ function App() {
       className: "mono",
       style: {
         fontSize: 9,
+        color: C.blue,
+        letterSpacing: '0.15em',
+        marginBottom: 6
+      }
+    }, "RESTORE FROM CLOUD (GITHUB)"), /*#__PURE__*/React.createElement("div", {
+      className: "mono",
+      style: {
+        fontSize: 9,
+        color: C.textVeryDim,
+        marginBottom: 10
+      }
+    }, "Already use this app elsewhere? Enter your repo + token and everything comes back."), /*#__PURE__*/React.createElement(Field, {
+      label: "Repo (owner/name)"
+    }, /*#__PURE__*/React.createElement("input", {
+      value: syncCfg.repo,
+      onChange: e => setSyncCfg({
+        ...syncCfg,
+        repo: e.target.value.trim()
+      }),
+      style: inputStyle,
+      placeholder: "yourname/tri-sync"
+    })), /*#__PURE__*/React.createElement(Field, {
+      label: "Fine-grained token (Contents read-write)"
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "password",
+      value: syncCfg.token,
+      onChange: e => setSyncCfg({
+        ...syncCfg,
+        token: e.target.value.trim()
+      }),
+      style: inputStyle,
+      placeholder: "github_pat_..."
+    })), /*#__PURE__*/React.createElement("button", {
+      disabled: cloudStatus === 'loading',
+      onClick: async () => {
+        if (!syncCfg.repo || !syncCfg.token) {
+          alert('Enter both repo and token first.');
+          return;
+        }
+        store.set('syncCfg', syncCfg);
+        await loadCloud(syncCfg);
+        cloudReadyRef.current = true;
+        const b = store.get('baseline');
+        if (b) {
+          syncNow(true);
+        } else alert('Connected, but no app data found in that repo yet (tri-data.json missing). Check the repo name, or import a backup file below.');
+      },
+      style: {
+        ...btnStyle,
+        width: '100%',
+        justifyContent: 'center',
+        padding: 14,
+        color: C.blue,
+        border: `1px solid ${C.blue}`,
+        marginBottom: 24
+      }
+    }, /*#__PURE__*/React.createElement(Icon, {
+      name: "refresh",
+      size: 14
+    }), " ", cloudStatus === 'loading' ? 'Connecting...' : 'Restore from cloud'), /*#__PURE__*/React.createElement("div", {
+      className: "mono",
+      style: {
+        fontSize: 9,
         color: C.amber,
         letterSpacing: '0.15em',
         marginBottom: 10
       }
-    }, "RESTORE FROM BACKUP"), /*#__PURE__*/React.createElement(ImportButton, {
+    }, "RESTORE FROM BACKUP FILE"), /*#__PURE__*/React.createElement(ImportButton, {
       onImport: importData
     })));
   }
@@ -1895,9 +1958,11 @@ function App() {
     style: inputStyle,
     placeholder: "github_pat_..."
   })), /*#__PURE__*/React.createElement("button", {
-    onClick: () => {
+    onClick: async () => {
       store.set('syncCfg', syncCfg);
-      alert('Sync settings saved.');
+      await loadCloud(syncCfg);
+      cloudReadyRef.current = true;
+      alert('Sync settings saved. Cloud data pulled (check the charts).');
     },
     style: {
       ...btnStyle,
@@ -1906,7 +1971,7 @@ function App() {
       padding: 12,
       marginBottom: 8
     }
-  }, "Save sync settings"), lastSync && /*#__PURE__*/React.createElement("div", {
+  }, "Save sync settings + pull cloud"), lastSync && /*#__PURE__*/React.createElement("div", {
     className: "mono",
     style: {
       fontSize: 10,
@@ -2106,6 +2171,12 @@ function Header({
       gap: 8
     }
   }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'baseline',
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", {
     className: "display",
     style: {
       fontSize: 18,
@@ -2115,7 +2186,13 @@ function Header({
     style: {
       color: C.amber
     }
-  }, "."), "READINESS"), /*#__PURE__*/React.createElement("div", {
+  }, "."), "READINESS"), /*#__PURE__*/React.createElement("span", {
+    className: "mono",
+    style: {
+      fontSize: 8,
+      color: C.textVeryDim
+    }
+  }, "BUILD 2026-06-11 11:18 UTC \xB7 r6")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       alignItems: 'center',
