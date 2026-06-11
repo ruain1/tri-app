@@ -1579,8 +1579,13 @@ function App() {
   // Non-destructive merge: incoming fields fill/overwrite per day, manual fields kept, sessions deduped
   const mergeData = data => {
     if (!data.entries && !data.sessions) throw new Error('file has no entries or sessions');
+    // CRITICAL: read from storage, not component state. State here can be a stale
+    // closure from an earlier render (the mount effect calls this after loadCloud
+    // has already replaced storage); merging into stale state silently destroys data.
+    const curEntries = store.get('entries') || {};
+    const curSessions = store.get('sessions') || [];
     const mergedEntries = {
-      ...entries
+      ...curEntries
     };
     let eNew = 0,
       eUpd = 0;
@@ -1597,12 +1602,12 @@ function App() {
       }
     });
     const fp = x => `${x.date}|${x.discipline}|${x.duration}|${x.distance ?? ''}`;
-    const have = new Set(sessions.map(fp));
+    const have = new Set(curSessions.map(fp));
     const incoming = (data.sessions || []).filter(x => !have.has(fp(x))).map((x, i) => ({
       ...x,
       id: x.id || Date.now().toString(36) + i
     }));
-    const mergedSessions = [...sessions, ...incoming];
+    const mergedSessions = [...curSessions, ...incoming];
     const okE = store.set('entries', mergedEntries);
     setEntries(mergedEntries);
     const okS = store.set('sessions', mergedSessions);
@@ -1657,11 +1662,12 @@ function App() {
 
   // ---- GitHub cloud save: the private repo is the source of truth ----
   const [cloudStatus, setCloudStatus] = useState('off'); // off | loading | ok | saving | error
+  const [cloudInfo, setCloudInfo] = useState('');
   const cloudShaRef = useRef(null);
   const cloudReadyRef = useRef(false);
   const lastPushedRef = useRef(null);
   const b64enc = str => btoa(unescape(encodeURIComponent(str)));
-  const b64dec = str => decodeURIComponent(escape(atob(str.replace(/\n/g, ''))));
+  const b64dec = str => decodeURIComponent(escape(atob(str.replace(/\s/g, ''))));
   const cloudUrl = (cfg = syncCfg) => `https://api.github.com/repos/${cfg.repo}/contents/tri-data.json`;
   const ghHeaders = (cfg = syncCfg) => ({
     Authorization: `Bearer ${cfg.token}`,
@@ -1675,8 +1681,9 @@ function App() {
       });
       if (r.status === 404) {
         setCloudStatus('ok');
+        setCloudInfo('cloud: no tri-data.json in repo yet (404)');
         return;
-      } // first run: nothing in cloud yet
+      }
       if (!r.ok) throw new Error(`GitHub ${r.status}`);
       const j = await r.json();
       cloudShaRef.current = j.sha;
@@ -1710,9 +1717,11 @@ function App() {
       setSessions(mergedS);
       lastPushedRef.current = null; // force the watcher to push the healed union back to the cloud
       setCloudStatus('ok');
+      setCloudInfo(`cloud loaded: ${Object.keys(cloudE).length} days + local ${Object.keys(localE).length} days -> ${Object.keys(mergedE).length} merged`);
     } catch (e) {
       console.warn('Cloud load failed:', e.message);
       setCloudStatus('error');
+      setCloudInfo('CLOUD LOAD FAILED: ' + e.message);
     }
   };
   const saveCloud = async (payloadStr, retried) => {
@@ -1744,6 +1753,7 @@ function App() {
     } catch (e) {
       console.warn('Cloud save failed:', e.message);
       setCloudStatus('error');
+      setCloudInfo('CLOUD SAVE FAILED: ' + e.message);
     }
   };
 
@@ -1773,6 +1783,7 @@ function App() {
         syncNow(true);
       } else {
         cloudReadyRef.current = true;
+        setCloudInfo('cloud: not configured on this device (SETUP > AUTO-SYNC)');
       }
     })();
   }, []);
@@ -1892,7 +1903,19 @@ function App() {
     onSync: () => syncNow(false),
     syncing: syncing,
     cloudStatus: cloudStatus
-  }), /*#__PURE__*/React.createElement(Nav, {
+  }), cloudInfo && /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '4px 16px',
+      background: cloudInfo.includes('FAILED') || cloudInfo.includes('not configured') ? C.redDim : 'transparent',
+      borderBottom: `1px solid ${C.border}`
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "mono",
+    style: {
+      fontSize: 9,
+      color: cloudInfo.includes('FAILED') || cloudInfo.includes('not configured') ? C.red : C.textVeryDim
+    }
+  }, cloudInfo)), /*#__PURE__*/React.createElement(Nav, {
     view: view,
     setView: setView
   }), /*#__PURE__*/React.createElement("div", {
@@ -2192,7 +2215,7 @@ function Header({
       fontSize: 8,
       color: C.textVeryDim
     }
-  }, "BUILD 2026-06-11 11:18 UTC \xB7 r6")), /*#__PURE__*/React.createElement("div", {
+  }, "BUILD 2026-06-11 11:31 UTC \xB7 r7")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       alignItems: 'center',
