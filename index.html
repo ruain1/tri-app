@@ -1563,6 +1563,14 @@ function App() {
       } else {
         alert(`Backup imported and verified: ${got} days saved.`);
       }
+      // Push to cloud immediately so a quick refresh cannot outrun the save
+      if (syncCfg.repo && syncCfg.token) {
+        saveCloud(JSON.stringify({
+          baseline: data.baseline || baseline,
+          entries: data.entries || entries,
+          sessions: data.sessions || sessions
+        }));
+      }
     } catch (e) {
       alert('Failed to import: ' + e.message);
     }
@@ -1673,23 +1681,34 @@ function App() {
       const j = await r.json();
       cloudShaRef.current = j.sha;
       const data = JSON.parse(b64dec(j.content));
-      if (data.baseline) {
-        store.set('baseline', data.baseline);
-        setBaseline(data.baseline);
-      }
-      if (data.entries) {
-        store.set('entries', data.entries);
-        setEntries(data.entries);
-      }
-      if (data.sessions) {
-        store.set('sessions', data.sessions);
-        setSessions(data.sessions);
-      }
-      lastPushedRef.current = JSON.stringify({
-        baseline: data.baseline,
-        entries: data.entries,
-        sessions: data.sessions
+      // Union-merge cloud with local: a stale cloud snapshot must never erase newer local data.
+      // Days are unioned; for days in both, local fields win. Sessions dedupe by fingerprint.
+      const localE = store.get('entries') || {};
+      const cloudE = data.entries || {};
+      const mergedE = {
+        ...cloudE
+      };
+      Object.keys(localE).forEach(d => {
+        mergedE[d] = mergedE[d] ? {
+          ...mergedE[d],
+          ...localE[d]
+        } : localE[d];
       });
+      const localS = store.get('sessions') || [];
+      const cloudS = data.sessions || [];
+      const fp = x => `${x.date}|${x.discipline}|${x.duration}|${x.distance ?? ''}`;
+      const seen = new Set(cloudS.map(fp));
+      const mergedS = [...cloudS, ...localS.filter(x => !seen.has(fp(x)))];
+      const mergedB = data.baseline || store.get('baseline') || null;
+      if (mergedB) {
+        store.set('baseline', mergedB);
+        setBaseline(mergedB);
+      }
+      store.set('entries', mergedE);
+      setEntries(mergedE);
+      store.set('sessions', mergedS);
+      setSessions(mergedS);
+      lastPushedRef.current = null; // force the watcher to push the healed union back to the cloud
       setCloudStatus('ok');
     } catch (e) {
       console.warn('Cloud load failed:', e.message);
