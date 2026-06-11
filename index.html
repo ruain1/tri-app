@@ -2215,7 +2215,7 @@ function Header({
       fontSize: 8,
       color: C.textVeryDim
     }
-  }, "BUILD 2026-06-11 11:31 UTC \xB7 r7")), /*#__PURE__*/React.createElement("div", {
+  }, "BUILD 2026-06-11 18:32 UTC \xB7 r9")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       alignItems: 'center',
@@ -4809,6 +4809,72 @@ function Triathlon({
     original: todaySessionPlan.plan
   } : null;
 
+  // Planned workouts from your actual training programme (Garmin calendar via nightly sync).
+  // When present these take precedence over the generated template; readiness still gates them.
+  const plannedToday = (todayEntry?.plannedWorkouts || []).filter(w => w && w.name);
+
+  // Programme week (Garmin calendar / TrainingPeaks): current Mon-Sun, from synced plannedWorkouts
+  const programmeWeek = (() => {
+    const t = new Date(todayISO());
+    const mon = new Date(t);
+    mon.setDate(t.getDate() - (t.getDay() + 6) % 7);
+    return [...Array(7)].map((_, i) => {
+      const d = new Date(mon);
+      d.setDate(mon.getDate() + i);
+      const iso = d.toISOString().split('T')[0];
+      return {
+        date: iso,
+        day: dayNames[d.getDay()],
+        workouts: ((entries[iso] || {}).plannedWorkouts || []).filter(w => w && w.name)
+      };
+    });
+  })();
+  const hasProgramme = programmeWeek.some(x => x.workouts.length > 0);
+  // Planned minutes per discipline this week, where the calendar provided durations
+  const programmeMins = programmeWeek.reduce((acc, x) => {
+    x.workouts.forEach(w => {
+      const k = ['swim', 'bike', 'run', 'strength'].includes(w.sport) ? w.sport : 'brick';
+      if (w.duration) acc[k] = (acc[k] || 0) + w.duration;
+      acc._count[k] = (acc._count[k] || 0) + 1;
+    });
+    return acc;
+  }, {
+    _count: {}
+  });
+  const planGate = (() => {
+    const sc = readiness?.score;
+    if (sc == null) return {
+      color: C.textDim,
+      label: 'LOG MORNING FIRST',
+      advice: 'Log your morning metrics to gate this session.'
+    };
+    if (deloadTriggered) return {
+      color: C.amber,
+      label: 'DELOAD WEEK',
+      advice: 'Execute at reduced volume: ~60% duration, easy intensity.'
+    };
+    if (sc >= 80 && (!acwr || acwr <= 1.5)) return {
+      color: C.green,
+      label: 'CLEARED AS PLANNED',
+      advice: 'Execute the session as written.'
+    };
+    if (sc >= 60) return {
+      color: C.amber,
+      label: 'REDUCE',
+      advice: 'Cut to ~70% duration, cap intensity at easy-moderate. Keep the structure.'
+    };
+    if (sc >= 40) return {
+      color: C.orange,
+      label: 'MINIMAL',
+      advice: 'Replace with 20-30min very easy movement, or skip.'
+    };
+    return {
+      color: C.red,
+      label: 'REST ENFORCED',
+      advice: 'Skip the plan today. Recovery is the workout.'
+    };
+  })();
+
   // Week boundaries (Mon-Sun)
   const weekStart = new Date(today);
   const offset = dow === 0 ? -6 : 1 - dow;
@@ -5097,7 +5163,72 @@ function Triathlon({
       fontSize: 10,
       color: C.textDim
     }
-  }, "No log entry today. Log morning metrics + soreness for a readiness score.")), adapted && /*#__PURE__*/React.createElement("div", {
+  }, "No log entry today. Log morning metrics + soreness for a readiness score.")), plannedToday.length > 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: C.panel,
+      border: `1px solid ${planGate.color}40`,
+      borderLeft: `3px solid ${planGate.color}`,
+      padding: 12,
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'baseline',
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 9,
+      color: C.textDim,
+      letterSpacing: '0.15em'
+    }
+  }, "TODAY \xB7 YOUR PLAN (GARMIN CALENDAR)"), /*#__PURE__*/React.createElement("div", {
+    className: "display",
+    style: {
+      fontSize: 12,
+      color: planGate.color,
+      whiteSpace: 'nowrap'
+    }
+  }, planGate.label)), plannedToday.map((w, i) => {
+    const col = (DISCIPLINES.find(x => x.id === w.sport) || {}).color || C.text;
+    return /*#__PURE__*/React.createElement("div", {
+      key: i,
+      style: {
+        display: 'flex',
+        alignItems: 'baseline',
+        gap: 8,
+        marginBottom: 4
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "mono",
+      style: {
+        fontSize: 9,
+        color: col,
+        fontWeight: 700
+      }
+    }, (w.sport || 'other').toUpperCase()), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 14,
+        color: C.text
+      }
+    }, w.name), w.duration && /*#__PURE__*/React.createElement("span", {
+      className: "mono",
+      style: {
+        fontSize: 10,
+        color: C.textDim
+      }
+    }, w.duration, "min"));
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 10,
+      color: planGate.color,
+      marginTop: 6
+    }
+  }, planGate.advice)), plannedToday.length === 0 && adapted && /*#__PURE__*/React.createElement("div", {
     style: {
       background: C.panel,
       border: `1px solid ${adapted.color}40`,
@@ -5607,7 +5738,52 @@ function Triathlon({
       letterSpacing: '0.1em',
       marginBottom: 10
     }
-  }, "WEEK PLAN \xB7 ", phase.label, deloadTriggered ? ' (DELOAD)' : ''), phase.sessions.map(s => {
+  }, "WEEK PLAN \xB7 ", hasProgramme ? 'YOUR PROGRAMME' : phase.label, deloadTriggered ? ' (DELOAD)' : ''), hasProgramme && programmeWeek.map(p => {
+    const isToday = p.date === todayISO();
+    return /*#__PURE__*/React.createElement("div", {
+      key: p.date,
+      style: {
+        display: 'flex',
+        gap: 10,
+        padding: '8px 0',
+        borderBottom: `1px solid ${C.borderLight}`,
+        background: isToday ? C.bg : 'transparent',
+        paddingLeft: isToday ? 8 : 0,
+        borderLeft: isToday ? `2px solid ${C.amber}` : 'none'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "mono",
+      style: {
+        fontSize: 11,
+        color: isToday ? C.amber : C.textDim,
+        width: 36,
+        flexShrink: 0
+      }
+    }, p.day.toUpperCase()), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        fontSize: 11,
+        color: p.workouts.length ? C.text : C.textVeryDim,
+        lineHeight: 1.5
+      }
+    }, p.workouts.length === 0 ? 'rest / nothing scheduled' : p.workouts.map((w, i) => /*#__PURE__*/React.createElement("span", {
+      key: i
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "mono",
+      style: {
+        color: (DISCIPLINES.find(x => x.id === w.sport) || {}).color || C.text,
+        fontWeight: 700,
+        fontSize: 10
+      }
+    }, (w.sport || '?').toUpperCase()), ' ', w.name, w.duration ? ` (${w.duration}min)` : '', i < p.workouts.length - 1 ? '  ·  ' : ''))));
+  }), hasProgramme && /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 9,
+      color: C.textVeryDim,
+      marginTop: 8
+    }
+  }, "From your Garmin calendar (TrainingPeaks or Garmin plan). Edit in the source; changes flow here on next sync."), !hasProgramme && phase.sessions.map(s => {
     const isToday = s.day === dayNames[dow];
     const intensityColor = {
       rest: C.textDim,
@@ -5650,7 +5826,7 @@ function Triathlon({
         flexShrink: 0
       }
     }));
-  }), /*#__PURE__*/React.createElement("div", {
+  }), !hasProgramme && /*#__PURE__*/React.createElement("div", {
     className: "mono",
     style: {
       fontSize: 9,
@@ -5726,7 +5902,7 @@ function Triathlon({
       color: C.textVeryDim,
       marginBottom: 10
     }
-  }, "// Build your Garmin workouts to these. Auto-tapers as race nears."), [{
+  }, hasProgramme ? '// Programme drives volume. Bars show progress vs planned session counts.' : '// Build your Garmin workouts to these. Auto-tapers as race nears.'), [{
     id: 'swim',
     unit: 'm',
     race: 750
@@ -5747,8 +5923,8 @@ function Triathlon({
     const baseGoal = phase.dist && phase.dist[id] || 0;
     const goal = deloadTriggered ? Math.round(baseGoal / 2) : baseGoal;
     const actual = weekDistByDisc[id] || 0;
-    const pct = goal ? Math.min(100, actual / goal * 100) : 0;
-    const targetCount = phase.count && phase.count[id] || 0;
+    const targetCount = hasProgramme ? programmeMins._count[id] || 0 : phase.count && phase.count[id] || 0;
+    const pct = hasProgramme ? targetCount ? Math.min(100, (weekCountByDisc[id] || 0) / targetCount * 100) : 0 : goal ? Math.min(100, actual / goal * 100) : 0;
     const doneCount = weekCountByDisc[id] || 0;
     const longest = prs[id] || 0;
     const raceReady = longest >= race;
@@ -5773,9 +5949,9 @@ function Triathlon({
     }, disc.label), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 10,
-        color: actual >= goal ? C.green : C.textDim
+        color: (hasProgramme ? doneCount >= targetCount : actual >= goal) ? C.green : C.textDim
       }
-    }, Math.round(actual), " / ", goal, " ", unit, " \xB7 ", doneCount, "/", targetCount, " sessions")), /*#__PURE__*/React.createElement("div", {
+    }, hasProgramme ? `${Math.round(actual)} ${unit} · ${doneCount}/${targetCount} sessions planned` : `${Math.round(actual)} / ${goal} ${unit} · ${doneCount}/${targetCount} sessions`)), /*#__PURE__*/React.createElement("div", {
       style: {
         height: 6,
         background: C.bg,
@@ -5799,7 +5975,7 @@ function Triathlon({
     }, raceReady ? `✓ race-ready: longest ${longest}${unit} ≥ ${race}${unit}` : `longest so far ${longest}${unit} · need ${race}${unit} continuous for race`));
   }), (() => {
     const strDisc = DISCIPLINES.find(d => d.id === 'strength');
-    const target = phase.count && phase.count.strength || 0;
+    const target = hasProgramme ? programmeMins._count.strength || 0 : phase.count && phase.count.strength || 0;
     const done = weekCountByDisc.strength || 0;
     return /*#__PURE__*/React.createElement("div", {
       style: {
@@ -5862,9 +6038,9 @@ function Triathlon({
       letterSpacing: '0.1em',
       marginBottom: 10
     }
-  }, "THIS WEEK \xB7 TIME (MIN)"), DISCIPLINES.filter(d => d.id !== 'brick').map(d => {
-    const baseTarget = phase.weekly[d.id] || 0;
-    const target = deloadTriggered ? Math.round(baseTarget / 2) : baseTarget;
+  }, "THIS WEEK \xB7 TIME (MIN)", hasProgramme ? ' · VS PROGRAMME' : ''), DISCIPLINES.filter(d => d.id !== 'brick').map(d => {
+    const baseTarget = hasProgramme ? programmeMins[d.id] || 0 : phase.weekly[d.id] || 0;
+    const target = deloadTriggered && !hasProgramme ? Math.round(baseTarget / 2) : baseTarget;
     const actual = weekVolume[d.id] || 0;
     const pct = target ? Math.min(100, actual / target * 100) : 0;
     return /*#__PURE__*/React.createElement("div", {
