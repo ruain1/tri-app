@@ -1306,6 +1306,20 @@ const store = {
   }
 };
 
+// True if this browser actually persists writes (private mode / blocked storage fails here)
+const storageWorks = (() => {
+  try {
+    const k = '__tri_probe__',
+      v = String(Date.now());
+    localStorage.setItem(k, v);
+    const ok = localStorage.getItem(k) === v;
+    localStorage.removeItem(k);
+    return ok;
+  } catch {
+    return false;
+  }
+})();
+
 // ---- Helpers ----
 const todayISO = () => {
   const d = new Date();
@@ -1527,19 +1541,28 @@ function App() {
         return;
       }
       if (!confirm('This will replace all current data with the backup. Continue?')) return;
+      let persisted = true;
       if (data.baseline) {
-        store.set('baseline', data.baseline);
+        persisted = store.set('baseline', data.baseline) && persisted;
         setBaseline(data.baseline);
       }
       if (data.entries) {
-        store.set('entries', data.entries);
+        persisted = store.set('entries', data.entries) && persisted;
         setEntries(data.entries);
       }
       if (data.sessions) {
-        store.set('sessions', data.sessions);
+        persisted = store.set('sessions', data.sessions) && persisted;
         setSessions(data.sessions);
       }
-      alert('Backup imported successfully.');
+      // Read-back verification: trust nothing
+      const back = store.get('entries');
+      const wanted = data.entries ? Object.keys(data.entries).length : 0;
+      const got = back ? Object.keys(back).length : 0;
+      if (!persisted || wanted > 0 && got < wanted) {
+        alert(`WARNING: import is visible but DID NOT SAVE (${got}/${wanted} days persisted). ` + 'This browser is not storing data - private window, blocked storage, or quota. ' + 'Data will vanish on refresh. Fix the browser storage before continuing.');
+      } else {
+        alert(`Backup imported and verified: ${got} days saved.`);
+      }
     } catch (e) {
       alert('Failed to import: ' + e.message);
     }
@@ -1572,10 +1595,11 @@ function App() {
       id: x.id || Date.now().toString(36) + i
     }));
     const mergedSessions = [...sessions, ...incoming];
-    store.set('entries', mergedEntries);
+    const okE = store.set('entries', mergedEntries);
     setEntries(mergedEntries);
-    store.set('sessions', mergedSessions);
+    const okS = store.set('sessions', mergedSessions);
     setSessions(mergedSessions);
+    if (!okE || !okS) throw new Error('merge succeeded in memory but FAILED TO SAVE - browser storage is not persisting');
     return `${eNew} new days, ${eUpd} days updated, ${incoming.length} new sessions`;
   };
   const mergeImport = async file => {
@@ -1937,7 +1961,19 @@ function Header({
       background: C.panel,
       paddingTop: 'env(safe-area-inset-top)'
     }
-  }, /*#__PURE__*/React.createElement("div", {
+  }, !storageWorks && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: C.redDim,
+      padding: '8px 16px'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "mono",
+    style: {
+      fontSize: 10,
+      color: C.red,
+      fontWeight: 700
+    }
+  }, "\u26A0 STORAGE NOT PERSISTING \xB7 nothing entered here will survive a refresh. Private window? Blocked site data?")), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: '14px 16px 10px',
       display: 'flex',
