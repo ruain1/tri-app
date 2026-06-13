@@ -2215,7 +2215,7 @@ function Header({
       fontSize: 8,
       color: C.textVeryDim
     }
-  }, "BUILD 2026-06-11 18:54 UTC \xB7 r11")), /*#__PURE__*/React.createElement("div", {
+  }, "BUILD 2026-06-13 07:55 UTC \xB7 r13")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
       alignItems: 'center',
@@ -3299,6 +3299,38 @@ function Dashboard({
     });
     return arr;
   }, [entries, sessions, baseline]);
+
+  // Map a day index back to a human date for chart tooltips
+  // Trailing 7-day HRV average per day (HRV is meaningful only vs your own baseline)
+  const hrvSeries = useMemo(() => {
+    const withHrv = sorted.filter(e => e.hrv != null);
+    return sorted.map(e => {
+      const widx = withHrv.filter(x => x.dayIdx <= e.dayIdx).slice(-7);
+      const avg = widx.length ? widx.reduce((a, b) => a + +b.hrv, 0) / widx.length : null;
+      return {
+        ...e,
+        hrvBaseline: avg != null ? Math.round(avg) : null
+      };
+    });
+  }, [sorted]);
+  const hrvVals = sorted.filter(e => e.hrv != null).map(e => +e.hrv);
+  const hrvMin = hrvVals.length ? Math.min(...hrvVals) : 0;
+  const hrvMax = hrvVals.length ? Math.max(...hrvVals) : 100;
+  const dayIdxToDate = useMemo(() => {
+    const m = {};
+    Object.keys(entries).forEach(date => {
+      m[daysBetween(baseline.startDate, date)] = date;
+    });
+    return m;
+  }, [entries, baseline.startDate]);
+  const fmtDayLabel = v => {
+    const iso = dayIdxToDate[v];
+    if (!iso) return `Day ${v}`;
+    const d = new Date(iso + 'T00:00:00');
+    const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
+    const mo = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
+    return `${wd} ${d.getDate()} ${mo} · Day ${v}`;
+  };
   const weights = sorted.filter(e => e.weight != null);
   const weightMA = useMemo(() => {
     const vals = sorted.map(e => e.weight ?? null);
@@ -3488,7 +3520,7 @@ function Dashboard({
     domain: [Math.floor(baseline.targetWeight - 2), Math.ceil(baseline.startWeight + 1)]
   }), /*#__PURE__*/React.createElement(Tooltip, {
     contentStyle: tipStyle,
-    labelFormatter: v => `Day ${v}`
+    labelFormatter: fmtDayLabel
   }), /*#__PURE__*/React.createElement(ReferenceLine, {
     y: baseline.startWeight,
     stroke: C.textDim,
@@ -3548,7 +3580,7 @@ function Dashboard({
     domain: [baseline.baselineHR - 10, baseline.baselineHR + 30]
   }), /*#__PURE__*/React.createElement(Tooltip, {
     contentStyle: tipStyle,
-    labelFormatter: v => `Day ${v}`
+    labelFormatter: fmtDayLabel
   }), /*#__PURE__*/React.createElement(ReferenceArea, {
     y1: baseline.baselineHR + 20,
     y2: 200,
@@ -3577,6 +3609,51 @@ function Dashboard({
     },
     connectNulls: true
   })))), /*#__PURE__*/React.createElement(ChartCard, {
+    title: "HRV \xB7 GARMIN OVERNIGHT",
+    subtitle: "Higher = better recovered \xB7 dashed line is your 7-day baseline \xB7 drops precede fatigue"
+  }, /*#__PURE__*/React.createElement(ResponsiveContainer, {
+    width: "100%",
+    height: 160
+  }, /*#__PURE__*/React.createElement(LineChart, {
+    data: hrvSeries
+  }, /*#__PURE__*/React.createElement(CartesianGrid, {
+    stroke: C.border,
+    strokeDasharray: "2 4"
+  }), /*#__PURE__*/React.createElement(XAxis, {
+    dataKey: "dayIdx",
+    stroke: C.textDim,
+    fontSize: 9,
+    domain: [0, horizon],
+    type: "number",
+    ticks: xTicks
+  }), /*#__PURE__*/React.createElement(YAxis, {
+    stroke: C.textDim,
+    fontSize: 9,
+    domain: [Math.max(0, Math.floor(hrvMin - 8)), Math.ceil(hrvMax + 8)]
+  }), /*#__PURE__*/React.createElement(Tooltip, {
+    contentStyle: tipStyle,
+    labelFormatter: fmtDayLabel
+  }), /*#__PURE__*/React.createElement(Line, {
+    type: "monotone",
+    dataKey: "hrvBaseline",
+    stroke: C.textDim,
+    strokeWidth: 1,
+    strokeDasharray: "4 4",
+    dot: false,
+    connectNulls: true,
+    name: "7d baseline"
+  }), /*#__PURE__*/React.createElement(Line, {
+    type: "monotone",
+    dataKey: "hrv",
+    stroke: C.blue,
+    strokeWidth: 2,
+    dot: {
+      fill: C.blue,
+      r: 2
+    },
+    connectNulls: true,
+    name: "HRV"
+  })))), /*#__PURE__*/React.createElement(ChartCard, {
     title: "BLOOD PRESSURE",
     subtitle: `Baseline ${baseline.baselineBPSys}/${baseline.baselineBPDia}`
   }, /*#__PURE__*/React.createElement(ResponsiveContainer, {
@@ -3599,7 +3676,7 @@ function Dashboard({
     fontSize: 9
   }), /*#__PURE__*/React.createElement(Tooltip, {
     contentStyle: tipStyle,
-    labelFormatter: v => `Day ${v}`
+    labelFormatter: fmtDayLabel
   }), /*#__PURE__*/React.createElement(ReferenceLine, {
     y: 140,
     stroke: C.amber,
@@ -3651,7 +3728,7 @@ function Dashboard({
     fontSize: 9
   }), /*#__PURE__*/React.createElement(Tooltip, {
     contentStyle: tipStyle,
-    labelFormatter: v => `Day ${v}`
+    labelFormatter: fmtDayLabel
   }), /*#__PURE__*/React.createElement(ReferenceLine, {
     y: baseline.stepTarget,
     stroke: C.green,
@@ -3686,7 +3763,7 @@ function Dashboard({
     fontSize: 9
   }), /*#__PURE__*/React.createElement(Tooltip, {
     contentStyle: tipStyle,
-    labelFormatter: v => `Day ${v}`
+    labelFormatter: fmtDayLabel
   }), /*#__PURE__*/React.createElement(ReferenceLine, {
     y: calcTDEE(baseline, stats?.current),
     stroke: C.text,
@@ -3721,7 +3798,7 @@ function Dashboard({
     fontSize: 9
   }), /*#__PURE__*/React.createElement(Tooltip, {
     contentStyle: tipStyle,
-    labelFormatter: v => `Day ${v}`
+    labelFormatter: fmtDayLabel
   }), /*#__PURE__*/React.createElement(ReferenceLine, {
     y: baseline.proteinTarget,
     stroke: C.pink,
@@ -3760,7 +3837,7 @@ function Dashboard({
     domain: [0, 100]
   }), /*#__PURE__*/React.createElement(Tooltip, {
     contentStyle: tipStyle,
-    labelFormatter: v => `Day ${v}`
+    labelFormatter: fmtDayLabel
   }), /*#__PURE__*/React.createElement(ReferenceLine, {
     yAxisId: "l",
     y: baseline.sleepTarget,
@@ -3812,7 +3889,7 @@ function Dashboard({
     domain: ['dataMin - 1', 'dataMax + 1']
   }), /*#__PURE__*/React.createElement(Tooltip, {
     contentStyle: tipStyle,
-    labelFormatter: v => `Day ${v}`
+    labelFormatter: fmtDayLabel
   }), /*#__PURE__*/React.createElement(Legend, {
     wrapperStyle: {
       fontSize: 9,
@@ -3869,7 +3946,7 @@ function Dashboard({
     domain: [0, 100]
   }), /*#__PURE__*/React.createElement(Tooltip, {
     contentStyle: tipStyle,
-    labelFormatter: v => `Day ${v}`
+    labelFormatter: fmtDayLabel
   }), /*#__PURE__*/React.createElement(Legend, {
     wrapperStyle: {
       fontSize: 9,
@@ -3914,7 +3991,7 @@ function Dashboard({
     domain: ['auto', 'auto']
   }), /*#__PURE__*/React.createElement(Tooltip, {
     contentStyle: tipStyle,
-    labelFormatter: v => `Day ${v}`
+    labelFormatter: fmtDayLabel
   }), baseline.bodyFatBaseline && /*#__PURE__*/React.createElement(ReferenceLine, {
     y: baseline.bodyFatBaseline,
     stroke: C.red,
@@ -3990,7 +4067,7 @@ function Dashboard({
     domain: ['auto', 'auto']
   }), /*#__PURE__*/React.createElement(Tooltip, {
     contentStyle: tipStyle,
-    labelFormatter: v => `Day ${v}`
+    labelFormatter: fmtDayLabel
   }), /*#__PURE__*/React.createElement(ReferenceLine, {
     y: baseline.age,
     stroke: C.green,
@@ -4039,7 +4116,7 @@ function Dashboard({
     domain: [0, 5]
   }), /*#__PURE__*/React.createElement(Tooltip, {
     contentStyle: tipStyle,
-    labelFormatter: v => `Day ${v}`
+    labelFormatter: fmtDayLabel
   }), /*#__PURE__*/React.createElement(Legend, {
     wrapperStyle: {
       fontSize: 9,
@@ -4094,7 +4171,7 @@ function Dashboard({
     domain: [0, 100]
   }), /*#__PURE__*/React.createElement(Tooltip, {
     contentStyle: tipStyle,
-    labelFormatter: v => `Day ${v}`
+    labelFormatter: fmtDayLabel
   }), /*#__PURE__*/React.createElement(Legend, {
     wrapperStyle: {
       fontSize: 9,
